@@ -440,7 +440,8 @@ plt.close()
 
 # %%
 df = pd.DataFrame(u_data, columns=["U1", "U2", "U3"]) # conversion to pd DF 
-df.to_csv("optimal_inputs.csv", index = False) # saving as csv  
+optimal_inputs_path = os.path.join(script_directory, "optimal_inputs.csv")
+df.to_csv(optimal_inputs_path, index = False) # saving as csv  
 print("optimal input shape: ",u_data.shape) 
 
 # %% [markdown]
@@ -646,5 +647,3 @@ plt.grid(True)
 plt.tight_layout()
 plt.savefig(os.path.join(sim_result_path, plot_name), dpi=300, bbox_inches="tight")
 plt.close()
-
-
