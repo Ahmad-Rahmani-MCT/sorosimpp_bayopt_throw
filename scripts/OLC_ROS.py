@@ -35,16 +35,16 @@ class Optimal_Controller:
         self.pub_obj = rospy.Publisher(SOROSIM_TAG + "/actuators", Float64MultiArray, queue_size=QUEUE_SIZE) 
 
         # Wait for the publisher to establish connection with the logger 
-        start_wait = rospy.get_time()
-        rospy.loginfo("Waiting for subscribers (sorosimpp & logger) to connect...")
+        # start_wait = rospy.get_time()
+        # rospy.loginfo("Waiting for subscribers (sorosimpp & logger) to connect...")
         while self.pub_obj.get_num_connections() < 2:
             if rospy.is_shutdown():
                 return 
             # Optional: Timeout warning just in case something is wrong with the launch
-            if rospy.get_time() - start_wait > 5.0:
-                rospy.logwarn_throttle(2, f"Still waiting... Current connections: {self.pub_obj.get_num_connections()}/2")
+            # if rospy.get_time() - start_wait > 5.0:
+            #    rospy.logwarn_throttle(2, f"Still waiting... Current connections: {self.pub_obj.get_num_connections()}/2")
             rospy.sleep(0.1)
-        rospy.loginfo("Subscriber connected. Starting control loop.") 
+        # rospy.loginfo("Subscriber connected. Starting control loop.") 
 
         # Optional: Add a small sleep to ensure the logger's TF callback is also ready
         # rospy.sleep(0.5)

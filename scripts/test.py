@@ -519,7 +519,20 @@ x_data = ros_sim_logs[:, mid_x_idx_ros:]
 
 # calculating the velocties 
 diff = np.diff(x_data, axis=0) 
-velocities = np.vstack([np.zeros((1, n_states)), diff / dt])
+velocities = np.vstack([np.zeros((1, n_states)), diff / dt]) 
+
+# predicting the landing positions 
+delta_z = x_data[:, -1] - z_g 
+sqrt_term = velocities[:,-1]**2 + (2 * g * delta_z)
+t_flight = (velocities[:,-1] + np.sqrt(sqrt_term)) / g 
+x_landing = x_data[:,ee_x_idx] + velocities[:,ee_x_idx] * t_flight
+y_landing = x_data[:,ee_y_idx] + velocities[:,ee_y_idx] * t_flight 
+
+# final landing based on the release time 
+idx = release_idx + max_lag + 1
+act_landing_x = x_landing[idx] 
+act_landing_y = y_landing[idx]
+final_land_pos = np.array([act_landing_x, act_landing_y])
 
 # Time vectors for plotting
 time_steps = np.arange(len(ros_sim_logs)) * dt
@@ -536,7 +549,6 @@ plt.figure(figsize=(10, 5))
 plt.plot(time_inputs, u_data[:, 0], label='Actuator 1', linewidth=2)
 plt.plot(time_inputs, u_data[:, 1], label='Actuator 2', linewidth=2)
 plt.plot(time_inputs, u_data[:, 2], label='Actuator 3', linewidth=2)
-'''
 # Add vertical line for release time
 # Note: release_idx corresponds to preds, we need to shift it for inputs which has lag padding
 max_lag = max(lag_input, lag_state)
@@ -544,7 +556,6 @@ release_time_plot_u = (release_idx + max_lag) * dt # IN THE U DOMAIN
 release_time_plot = (release_idx + max_lag +1) * dt # IN THE X DOMAIN
 plt.axvline(x=release_time_plot_u, color='k', linestyle='--', label=f'Actuator Input Corresponding to Release ({release_time_plot_u:.2f}s)')
 plt.axvline(x=release_time_plot, color='k', linestyle='--', label=f'Release Instance ({release_time_plot:.2f}s)')
-'''
 plt.title('Optimal Input Profiles')
 plt.xlabel('Time (s)')
 plt.ylabel('Actuation Input')
@@ -563,9 +574,9 @@ plt.plot(x_data[0, ee_x_idx], x_data[0, ee_y_idx], 'go', label='Start')
 # Mark end 
 plt.plot(x_data[-1, ee_x_idx], x_data[-1, ee_y_idx], 'ko', label='End') 
 # Mark release point
-#plt.plot(x_data[release_idx, ee_x_idx], x_data[release_idx, ee_y_idx], 'ro', label='Release Point')
+plt.plot(x_data[release_idx + max_lag + 1, ee_x_idx], x_data[release_idx + max_lag + 1, ee_y_idx], 'ro', label='Release Point')
 # Mark landing point and desired landing point 
-#plt.plot(final_land_pos[0], final_land_pos[1], 'rx', label='Landing Point')
+plt.plot(final_land_pos[0], final_land_pos[1], 'rx', label='Landing Point')
 #plt.plot(des_land_pos[0], des_land_pos[1], 'kx', label='Desired Landing Point')
 plt.title('End Effector Trajectory (X-Y)')
 plt.xlabel('X Position (m)')
@@ -582,7 +593,7 @@ ax.set_aspect('equal', adjustable='box')  # optional: square scaling
 plt.tight_layout() # adjust padding so labels and titles dont get clipped in the saved file 
 plt.savefig(os.path.join(sim_result_path, plot_name), dpi=300, bbox_inches="tight")
 plt.close() 
-'''
+
 # Plot 3: Landing Targets
 plot_name = "Landing_sim.png"
 plt.figure(figsize=(8, 8))
@@ -607,7 +618,7 @@ plt.grid(True)
 plt.tight_layout() # adjust padding so labels and titles dont get clipped in the saved file 
 plt.savefig(os.path.join(sim_result_path, plot_name), dpi=300, bbox_inches="tight")
 plt.close()
-'''
+
 # plot 4: Velocity profile 
 plot_name = "vel_profile_sim.png"
 plt.figure(figsize=(10, 5))
@@ -616,10 +627,8 @@ plt.plot(time_steps, velocities[:, ee_y_idx], label='End Effector Y Velocity', l
 plt.plot(time_steps, velocities[:, ee_z_idx], label='End Effector Z velocity', linewidth=2)
 # Add vertical line for release time
 # Note: release_idx corresponds to preds, we need to shift it for inputs which has lag padding
-'''
-release_time_plot_v = (release_idx) * dt 
+release_time_plot_v = (release_idx + max_lag + 1) * dt 
 plt.axvline(x=release_time_plot_v, color='k', linestyle='--', label=f'Release Instance ({release_time_plot_v:.2f}s)')
-'''
 plt.title('Velocity Profiles')
 plt.xlabel('Time (s)')
 plt.ylabel('Velocity [m/s]')
@@ -637,7 +646,7 @@ plt.figure(figsize=(10, 5))
 plt.plot(time_steps, v_abs, label='End Effector Absolute Velocity', linewidth=2, color='purple')
 # Add vertical line for release time
 # Note: release_idx corresponds to preds, we need to shift it for inputs which has lag padding
-release_time_plot_v = (release_idx) * dt 
+release_time_plot_v = (release_idx + max_lag + 1) * dt 
 plt.axvline(x=release_time_plot_v, color='k', linestyle='--', label=f'Release Instance ({release_time_plot_v:.2f}s)')
 plt.title('Absolute Velocity (Magnitude) Profile')
 plt.xlabel('Time (s)')
