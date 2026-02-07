@@ -57,9 +57,11 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.1, 0.1] # desired landing pose 
+des_land_pos = [0.15, 0.15] # desired landing pose 
 Q = 1 # landing pose weight term  
-n_trials = 1000 # number of trials
+n_trials = 1000 # number of trials 
+ramp_steps_runup = 4 
+runup_hold_steps = 3 
 
 # selecting the compute device 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
@@ -140,21 +142,27 @@ with open(os.path.join(model_data_path, state_scaler_filename), "rb") as file :
 # defining the function to simulate the system given the decision variables
 
 # %%
-def simulate_sys(u_step: np.array, ramp_steps: int, release_step: int, input_scaler: MinMaxScaler, state_scaler: MinMaxScaler) : 
+def simulate_sys_runup(u_step_runup: np.array, ramp_steps_runup: int, u_step: np.array, ramp_steps: int, release_step: int, input_scaler: MinMaxScaler, state_scaler: MinMaxScaler) : 
         
         # configuring the inputs
-        # creating the ramp profile 
-        ramp_factor = np.linspace(0, 1, ramp_steps) 
-        ramp_factor = np.repeat(ramp_factor[:,None], n_inputs, axis=1) 
+        # creating the runup ramp profile 
+        ramp_factor_runup = np.linspace(0, 1, ramp_steps_runup) 
+        ramp_factor_runup = np.repeat(ramp_factor_runup[:,None], n_inputs, axis=1) 
+        # creating the run up array 
+        u_ramp_runup = ramp_factor_runup * u_step_runup 
+        # defining the holding input for the run up 
+        u_hold_runup = np.tile(u_step_runup, (runup_hold_steps,1))
+        # creating the ramp profile for throwing from the runup 
+        ramp_factor = np.linspace(u_step_runup, u_step, ramp_steps) 
         # creating the ramp array 
-        u_ramp = ramp_factor * u_step 
-        # padding the remaining input array with the final hold value 
-        hold_steps = total_steps - ramp_steps 
+        u_ramp = ramp_factor  
+        # creating the input array and padding the remaining input array with the final hold value 
+        hold_steps = total_steps - (ramp_steps_runup+runup_hold_steps+ramp_steps) 
         if hold_steps > 0 : 
             u_hold = np.tile(u_step, (hold_steps,1)) 
-            u_array = np.vstack((u_ramp, u_hold)) 
+            u_array = np.vstack((u_ramp_runup, u_hold_runup, u_ramp, u_hold)) 
         else : 
-            u_array = u_ramp 
+            u_array = np.vstack((u_ramp_runup, u_hold_runup, u_ramp)) 
 
         # stacking input zeros (crucial for the simulation)(to have the prefilled states) 
         zeros = np.zeros((max_lag+1, n_inputs)) 
@@ -233,6 +241,7 @@ def simulate_sys(u_step: np.array, ramp_steps: int, release_step: int, input_sca
 
         # unscaling the predictions (states corrresponding to the inputs)  
         preds_np = state_scaler.inverse_transform(preds_np) 
+        runup_traj = preds_np[:len(u_ramp_runup)+len(u_hold_runup)] 
 
         # complete trajectory (appending the initial states) 
         state_traj = np.vstack((X, preds_np))
@@ -249,7 +258,6 @@ def simulate_sys(u_step: np.array, ramp_steps: int, release_step: int, input_sca
         y_landing = state_traj[:,ee_y_idx] + velocities[:,ee_y_idx] * t_flight  
 
         # actual landing based on the release time 
-        # idx = min(release_step, len(x_landing) - 1) #since python uses 0 indexing
         idx = release_step
         act_landing_x = x_landing[idx] 
         act_landing_y = y_landing[idx]
@@ -258,7 +266,7 @@ def simulate_sys(u_step: np.array, ramp_steps: int, release_step: int, input_sca
         # distance to the goal 
         dist = np.linalg.norm(des_land_pos - land_pos) 
 
-        return u_array, state_traj, velocities, land_pos, idx, dist
+        return u_array, state_traj, velocities, land_pos, idx, dist, runup_traj
 
 # %% [markdown]
 # defining the objective function
@@ -266,20 +274,49 @@ def simulate_sys(u_step: np.array, ramp_steps: int, release_step: int, input_sca
 # %%
 def objective(trial) : 
     # decision variables : 
+    # runup inputs 
+    u1_step_runup = trial.suggest_float("act1_step_runup", 0, umax) # actuator 1 
+    u2_step_runup = trial.suggest_float("act2_step_runup", 0, umax) # actuator 2
+    u3_step_runup = trial.suggest_float("act3_step_runup", 0, umax) # actuator 3 
+    u_step_runup = np.array([u1_step_runup, u2_step_runup, u3_step_runup]) # shape (,3) 
     # actuator inputs 
     u1_step = trial.suggest_float("act1_step", 0, umax) # actuator 1 
     u2_step = trial.suggest_float("act2_step", 0, umax) # actuator 2
     u3_step = trial.suggest_float("act3_step", 0, umax) # actuator 3 
     u_step = np.array([u1_step, u2_step, u3_step]) # shape (,3)
     # ramp and release time steps  
-    ramp_steps = trial.suggest_int("ramp_steps", 3, total_steps) 
+    ramp_steps = trial.suggest_int("ramp_steps", 3, total_steps-ramp_steps_runup-runup_hold_steps) 
     release_step = trial.suggest_int("release_step", 0, total_steps + max_lag)  
+    # simulate the system
+    _, _, _, _, _, dist, runup_traj = simulate_sys_runup(u_step_runup=u_step_runup, ramp_steps_runup=ramp_steps_runup, u_step=u_step, ramp_steps=ramp_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)    
+    # defining the cost function 
+    # defining the runup cost 
+    r_x = runup_traj[:, ee_x_idx]
+    r_y = runup_traj[:, ee_y_idx] 
+    t_x, t_y = des_land_pos[0], des_land_pos[1]
+    t_norm = np.sqrt(t_x**2 + t_y**2) + 1e-6 # Avoid div by zero 
+    # 3. Calculate "Straightness" Penalty (Distance from Line)
+    # The perpendicular distance from a point (x,y) to a line passing through (0,0) and (tx, ty)
+    # Formula: |x*ty - y*tx| / norm
+    dist_to_line = np.abs(r_x * t_y - r_y * t_x) / t_norm
+    cost_straightness = np.mean(dist_to_line)
+    # 4. Calculate "Direction" Penalty (Opposite Side enforcement)
+    # Dot product: if > 0, we are on the target side (Wrong). If < 0, we are opposite (Correct).
+    dot_prod = r_x * t_x + r_y * t_y
+    # We only penalize positive dot products (movement towards target during runup)
+    cost_direction = np.mean(np.maximum(0, dot_prod))
 
-    _, _, _, _, _, dist = simulate_sys(u_step=u_step, ramp_steps=ramp_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)    
-
-    cost = Q * dist 
+    # 5. Weights for the new terms
+    W_line = 2.0 # Weight for staying on the line
+    W_dir = 2.0   # Weight for being on the opposite side
     
-    return cost
+    # Update Total Cost
+    cost = (Q * dist) + (W_line * cost_straightness) + (W_dir * cost_direction)
+
+    # --- END MODIFICATION ---
+
+    return cost 
+    
 
 # %% [markdown]
 # bayesian optimization settings and initiation
@@ -295,12 +332,12 @@ study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
 import matplotlib.patches as patches
 
 script_directory = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd() 
-direct_throw_performance_dirname = "direct_throw_performance" 
-direct_throw_performance_path = os.path.join(script_directory, direct_throw_performance_dirname)
-os.makedirs(direct_throw_performance_path, exist_ok=True) 
+runup_throw_performance_dirname = "runup_throw_performance" 
+runup_throw_performance_path = os.path.join(script_directory, runup_throw_performance_dirname)
+os.makedirs(runup_throw_performance_path, exist_ok=True) 
 
 MIL_result_dirname = "MIL_results" 
-MIL_result_path = os.path.join(direct_throw_performance_path, MIL_result_dirname)
+MIL_result_path = os.path.join(runup_throw_performance_path, MIL_result_dirname)
 os.makedirs(MIL_result_path, exist_ok=True) 
 
 # extracting the best parameters
@@ -316,8 +353,14 @@ u3_step = best_params["act3_step"]
 u_step = np.array([u1_step, u2_step, u3_step])
 ramp_steps = best_params["ramp_steps"]
 release_step = best_params["release_step"] 
+# run up phase
+u1_step_runup = best_params["act1_step_runup"]
+u2_step_runup = best_params["act2_step_runup"]
+u3_step_runup = best_params["act3_step_runup"]
+u_step_runup = np.array([u1_step_runup, u2_step_runup, u3_step_runup])
+ramp_steps_runup = ramp_steps_runup
 
-u_data, x_data, velocities, final_land_pos, release_idx, dist = simulate_sys(u_step=u_step, ramp_steps=ramp_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler) 
+u_data, x_data, velocities, final_land_pos, release_idx, dist, runup_traj = simulate_sys_runup(u_step_runup=u_step_runup, ramp_steps_runup=ramp_steps_runup, u_step=u_step, ramp_steps=ramp_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)  
 
 print("final distance: ", dist) 
 print("state tejectory shape: ", x_data.shape)
@@ -325,9 +368,9 @@ print("input trajectory shape: ", u_data.shape)
 
 # Time vectors for plotting
 time_steps = np.arange(len(x_data)) * dt
-time_inputs = np.arange(len(u_data)) * dt 
+time_inputs = np.arange(len(u_data)) * dt
 
-# plot 1: Actuation Profiles 
+# plot 1: Actuation Profiles
 plot_name = "act_inputs_MIL.png"
 plt.figure(figsize=(10, 5))
 plt.plot(time_inputs, u_data[:, 0], label='Actuator 1', linewidth=2)
@@ -335,7 +378,8 @@ plt.plot(time_inputs, u_data[:, 1], label='Actuator 2', linewidth=2)
 plt.plot(time_inputs, u_data[:, 2], label='Actuator 3', linewidth=2)
 # Add vertical line for release time
 # Note: release_idx corresponds to preds, we need to shift it for inputs which has lag padding
-release_time_plot_u = (release_idx - 1) * dt # IN THE U DOMAIN
+max_lag = max(lag_input, lag_state)
+release_time_plot_u = (release_idx -1 ) * dt # IN THE U DOMAIN
 release_time_plot = (release_idx) * dt # IN THE X DOMAIN
 plt.axvline(x=release_time_plot_u, color='k', linestyle='--', label=f'Actuator Input Corresponding to Release ({release_time_plot_u:.2f}s)')
 plt.axvline(x=release_time_plot, color='k', linestyle='--', label=f'Release Instance ({release_time_plot:.2f}s)')
@@ -346,11 +390,14 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig(os.path.join(MIL_result_path, plot_name), dpi=300, bbox_inches="tight")
-plt.close() 
+plt.close()
 
 # Plot 2: 2D End Effector Trajectory (X-Y)
 plot_name = "2D_EE_traj_MIL.png"
 plt.figure(figsize=(8, 8))
+# plot run up trajectory 
+# plt.plot(runup_traj[:, ee_x_idx], runup_traj[:, ee_y_idx], 'r-', linewidth=2, label='Run Up Trajectory')
+# plot complete trajectory after run up 
 plt.plot(x_data[:, ee_x_idx], x_data[:, ee_y_idx], 'b-', linewidth=2, label='Trajectory')
 # Mark start
 plt.plot(x_data[0, ee_x_idx], x_data[0, ee_y_idx], 'go', label='Start') 
@@ -377,7 +424,7 @@ plt.tight_layout() # adjust padding so labels and titles dont get clipped in the
 plt.savefig(os.path.join(MIL_result_path, plot_name), dpi=300, bbox_inches="tight")
 plt.close() 
 
-# Plot 3: Landing Targets
+# Plot 3: Landing Targets 
 plot_name = "Landing_MIL.png"
 plt.figure(figsize=(8, 8))
 # Plot Desired
@@ -398,11 +445,10 @@ plt.ylabel('Y Landing (m)')
 plt.legend()
 plt.axis('equal')
 plt.grid(True)
-plt.tight_layout()
 plt.savefig(os.path.join(MIL_result_path, plot_name), dpi=300, bbox_inches="tight")
-plt.close() 
+plt.close()
 
-# plot 4: Velocity profile 
+# plot 4: Velocity profile  
 plot_name = "vel_profile_MIL.png"
 plt.figure(figsize=(10, 5))
 plt.plot(time_steps, velocities[:, ee_x_idx], label='End Effector X Velocity', linewidth=2)
@@ -421,7 +467,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(MIL_result_path, plot_name), dpi=300, bbox_inches="tight")
 plt.close() 
 
-# Plot 5: Absolute Velocity Profile 
+# Plot 5: Absolute Velocity Profile
 plot_name = "abs_vel_profile_MIL.png"
 ee_vel_indices = [ee_x_idx, ee_y_idx, ee_z_idx]
 v_abs = np.linalg.norm(velocities[:, ee_vel_indices], axis=1) 
@@ -438,15 +484,14 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig(os.path.join(MIL_result_path, plot_name), dpi=300, bbox_inches="tight")
-plt.close() 
+plt.close()  
 
 # saving the MIL simulated state and input trajectory 
 MIL_trajectory = np.hstack((u_data, x_data)) 
 MIL_trajectory_df = pd.DataFrame(MIL_trajectory, columns=["U1", "U2", "U3", "mid_x", "mid_y", "mid_z", "ee_x", "ee_y", "ee_z"]) # conversion to pd DF 
-MIL_trajectory_filename = "direct_MIL_sim_logs.csv" 
+MIL_trajectory_filename = "runup_MIL_sim_logs.csv" 
 MIL_trajectory_path = os.path.join(script_directory, MIL_trajectory_filename) 
 MIL_trajectory_df.to_csv(MIL_trajectory_path, index = False) # saving as csv 
-
 
 # %% [markdown]
 # saving the best inputs as a .csv file
@@ -454,7 +499,7 @@ MIL_trajectory_df.to_csv(MIL_trajectory_path, index = False) # saving as csv
 # %%
 df = pd.DataFrame(u_data, columns=["U1", "U2", "U3"]) # conversion to pd DF 
 optimal_inputs_path = os.path.join(script_directory, "optimal_inputs.csv")
-df.to_csv(optimal_inputs_path, index = False) # saving as csv 
+df.to_csv(optimal_inputs_path, index = False) # saving as csv  
 print("optimal input shape: ",u_data.shape) 
 
 # %% [markdown]
@@ -532,7 +577,7 @@ x_data = ros_sim_logs[:len(x_data), mid_x_idx_ros:]
 
 # calculating the velocties 
 diff = np.diff(x_data, axis=0) 
-velocities = np.vstack([np.zeros((1, n_states)), diff / dt]) 
+velocities = np.vstack([np.zeros((1, n_states)), diff / dt])
 
 # predicting the landing positions 
 delta_z = x_data[:, -1] - z_g 
@@ -553,7 +598,7 @@ time_inputs = np.arange(len(u_data)) * dt
 
 # creating the folder to save the plots 
 sim_result_dirname = "sim_results" 
-sim_result_path = os.path.join(direct_throw_performance_path, sim_result_dirname)
+sim_result_path = os.path.join(runup_throw_performance_path, sim_result_dirname)
 os.makedirs(sim_result_path, exist_ok=True) 
 
 # plot 1: Actuation Profiles
@@ -604,6 +649,7 @@ ax.set_xlim(cx - half, cx + half)
 ax.set_ylim(cy - half, cy + half)
 ax.set_aspect('equal', adjustable='box')  # optional: square scaling
 plt.tight_layout() # adjust padding so labels and titles dont get clipped in the saved file 
+plt.tight_layout() # adjust padding so labels and titles dont get clipped in the saved file 
 plt.savefig(os.path.join(sim_result_path, plot_name), dpi=300, bbox_inches="tight")
 plt.close() 
 
@@ -649,7 +695,7 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout() # adjust padding so labels and titles dont get clipped in the saved file 
 plt.savefig(os.path.join(sim_result_path, plot_name), dpi=300, bbox_inches="tight")
-plt.close()
+plt.close() 
 
 # Plot 5: Absolute Velocity Profile 
 plot_name = "abs_vel_profile_sim.png"
@@ -668,6 +714,6 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig(os.path.join(sim_result_path, plot_name), dpi=300, bbox_inches="tight")
-plt.close()
+plt.close() 
 
 
