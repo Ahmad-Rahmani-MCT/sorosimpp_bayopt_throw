@@ -57,7 +57,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.1, 0.1] # desired landing pose 
+des_land_pos = [0.15, 0.15] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials
 
@@ -577,7 +577,7 @@ plt.plot(x_data[-1, ee_x_idx], x_data[-1, ee_y_idx], 'ko', label='End')
 plt.plot(x_data[release_idx + max_lag + 1, ee_x_idx], x_data[release_idx + max_lag + 1, ee_y_idx], 'ro', label='Release Point')
 # Mark landing point and desired landing point 
 plt.plot(final_land_pos[0], final_land_pos[1], 'rx', label='Landing Point')
-#plt.plot(des_land_pos[0], des_land_pos[1], 'kx', label='Desired Landing Point')
+plt.plot(des_land_pos[0], des_land_pos[1], 'kx', label='Desired Landing Point')
 plt.title('End Effector Trajectory (X-Y)')
 plt.xlabel('X Position (m)')
 plt.ylabel('Y Position (m)')
