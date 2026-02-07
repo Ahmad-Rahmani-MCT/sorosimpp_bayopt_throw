@@ -234,19 +234,23 @@ def simulate_sys(u_step: np.array, ramp_steps: int, release_step: int, input_sca
         # unscaling the predictions (states corrresponding to the inputs)  
         preds_np = state_scaler.inverse_transform(preds_np) 
 
+        # complete trajectory (appending the initial states) 
+        state_traj = np.vstack((X, preds_np))
+
         # calculating the veloctiy  
-        diff = np.diff(preds_np, axis=0) 
+        diff = np.diff(state_traj, axis=0) 
         velocities = np.vstack([np.zeros((1, n_states)), diff / dt]) 
 
         # predicting the landing positions 
-        delta_z = preds_np[:, -1] - z_g 
+        delta_z = state_traj[:, -1] - z_g 
         sqrt_term = velocities[:,-1]**2 + (2 * g * delta_z)
         t_flight = (velocities[:,-1] + np.sqrt(sqrt_term)) / g 
-        x_landing = preds_np[:,ee_x_idx] + velocities[:,ee_x_idx] * t_flight
-        y_landing = preds_np[:,ee_y_idx] + velocities[:,ee_y_idx] * t_flight  
+        x_landing = state_traj[:,ee_x_idx] + velocities[:,ee_x_idx] * t_flight
+        y_landing = state_traj[:,ee_y_idx] + velocities[:,ee_y_idx] * t_flight  
 
         # actual landing based on the release time 
-        idx = min(release_step, len(x_landing) - 1) #since python uses 0 indexing
+        # idx = min(release_step, len(x_landing) - 1) #since python uses 0 indexing
+        idx = release_step
         act_landing_x = x_landing[idx] 
         act_landing_y = y_landing[idx]
         land_pos = np.array([act_landing_x, act_landing_y]) 
@@ -254,7 +258,7 @@ def simulate_sys(u_step: np.array, ramp_steps: int, release_step: int, input_sca
         # distance to the goal 
         dist = np.linalg.norm(des_land_pos - land_pos) 
 
-        return u_array, preds_np, velocities, land_pos, idx, dist
+        return u_array, state_traj, velocities, land_pos, idx, dist
 
 # %% [markdown]
 # defining the objective function
@@ -269,7 +273,7 @@ def objective(trial) :
     u_step = np.array([u1_step, u2_step, u3_step]) # shape (,3)
     # ramp and release time steps  
     ramp_steps = trial.suggest_int("ramp_steps", 3, total_steps) 
-    release_step = trial.suggest_int("release_step", 0, ramp_steps)  
+    release_step = trial.suggest_int("release_step", 0, total_steps + max_lag)  
 
     _, _, _, _, _, dist = simulate_sys(u_step=u_step, ramp_steps=ramp_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)    
 
@@ -315,11 +319,13 @@ release_step = best_params["release_step"]
 
 u_data, x_data, velocities, final_land_pos, release_idx, dist = simulate_sys(u_step=u_step, ramp_steps=ramp_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler) 
 
-print("final distance: ", dist)
+print("final distance: ", dist) 
+print("state tejectory shape: ", x_data.shape)
+print("input trajectory shape: ", u_data.shape)
 
 # Time vectors for plotting
 time_steps = np.arange(len(x_data)) * dt
-time_inputs = np.arange(len(u_data)) * dt
+time_inputs = np.arange(len(u_data)) * dt 
 
 # plot 1: Actuation Profiles 
 plot_name = "act_inputs_MIL.png"
@@ -329,9 +335,8 @@ plt.plot(time_inputs, u_data[:, 1], label='Actuator 2', linewidth=2)
 plt.plot(time_inputs, u_data[:, 2], label='Actuator 3', linewidth=2)
 # Add vertical line for release time
 # Note: release_idx corresponds to preds, we need to shift it for inputs which has lag padding
-max_lag = max(lag_input, lag_state)
-release_time_plot_u = (release_idx + max_lag) * dt # IN THE U DOMAIN
-release_time_plot = (release_idx + max_lag +1) * dt # IN THE X DOMAIN
+release_time_plot_u = (release_idx - 1) * dt # IN THE U DOMAIN
+release_time_plot = (release_idx) * dt # IN THE X DOMAIN
 plt.axvline(x=release_time_plot_u, color='k', linestyle='--', label=f'Actuator Input Corresponding to Release ({release_time_plot_u:.2f}s)')
 plt.axvline(x=release_time_plot, color='k', linestyle='--', label=f'Release Instance ({release_time_plot:.2f}s)')
 plt.title('Optimal Input Profiles')
@@ -433,7 +438,15 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig(os.path.join(MIL_result_path, plot_name), dpi=300, bbox_inches="tight")
-plt.close()
+plt.close() 
+
+# saving the MIL simulated state and input trajectory 
+MIL_trajectory = np.hstack((u_data, x_data)) 
+MIL_trajectory_df = pd.DataFrame(MIL_trajectory, columns=["U1", "U2", "U3", "mid_x", "mid_y", "mid_z", "ee_x", "ee_y", "ee_z"]) # conversion to pd DF 
+MIL_trajectory_filename = "MIL_sim_logs.csv" 
+MIL_trajectory_path = os.path.join(script_directory, MIL_trajectory_filename) 
+MIL_trajectory_df.to_csv(MIL_trajectory_path, index = False) # saving as csv 
+
 
 # %% [markdown]
 # saving the best inputs as a .csv file
@@ -441,7 +454,7 @@ plt.close()
 # %%
 df = pd.DataFrame(u_data, columns=["U1", "U2", "U3"]) # conversion to pd DF 
 optimal_inputs_path = os.path.join(script_directory, "optimal_inputs.csv")
-df.to_csv(optimal_inputs_path, index = False) # saving as csv  
+df.to_csv(optimal_inputs_path, index = False) # saving as csv 
 print("optimal input shape: ",u_data.shape) 
 
 # %% [markdown]
@@ -484,7 +497,7 @@ launch_controller_logger = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_p
 # starting the launch files 
 print("starting the sorosimpp launch file")
 launch_sorosimpp.start() 
-rospy.sleep(3) 
+rospy.sleep(10) 
 print("starting the controller and logger launch file") 
 launch_controller_logger.start() 
 
@@ -514,8 +527,8 @@ ros_sim_logs = df.to_numpy()
 print("ROS simulation logs shape: ", ros_sim_logs.shape) 
 
 # extracting the inputs and states
-u_data = ros_sim_logs[:, act_1_idx_ros:mid_x_idx_ros]
-x_data = ros_sim_logs[:, mid_x_idx_ros:] 
+u_data = ros_sim_logs[:len(u_data), act_1_idx_ros:mid_x_idx_ros]
+x_data = ros_sim_logs[:len(x_data), mid_x_idx_ros:] 
 
 # calculating the velocties 
 diff = np.diff(x_data, axis=0) 
@@ -529,14 +542,14 @@ x_landing = x_data[:,ee_x_idx] + velocities[:,ee_x_idx] * t_flight
 y_landing = x_data[:,ee_y_idx] + velocities[:,ee_y_idx] * t_flight 
 
 # final landing based on the release time 
-idx = release_idx + max_lag + 1
+idx = release_idx
 act_landing_x = x_landing[idx] 
 act_landing_y = y_landing[idx]
 final_land_pos = np.array([act_landing_x, act_landing_y])
 
 # Time vectors for plotting
-time_steps = np.arange(len(ros_sim_logs)) * dt
-time_inputs = np.arange(len(ros_sim_logs)) * dt
+time_steps = np.arange(len(x_data)) * dt
+time_inputs = np.arange(len(u_data)) * dt
 
 # creating the folder to save the plots 
 sim_result_dirname = "sim_results" 
@@ -552,8 +565,8 @@ plt.plot(time_inputs, u_data[:, 2], label='Actuator 3', linewidth=2)
 # Add vertical line for release time
 # Note: release_idx corresponds to preds, we need to shift it for inputs which has lag padding
 max_lag = max(lag_input, lag_state)
-release_time_plot_u = (release_idx + max_lag) * dt # IN THE U DOMAIN
-release_time_plot = (release_idx + max_lag +1) * dt # IN THE X DOMAIN
+release_time_plot_u = (release_idx - 1) * dt # IN THE U DOMAIN
+release_time_plot = (release_idx) * dt # IN THE X DOMAIN
 plt.axvline(x=release_time_plot_u, color='k', linestyle='--', label=f'Actuator Input Corresponding to Release ({release_time_plot_u:.2f}s)')
 plt.axvline(x=release_time_plot, color='k', linestyle='--', label=f'Release Instance ({release_time_plot:.2f}s)')
 plt.title('Optimal Input Profiles')
@@ -574,7 +587,7 @@ plt.plot(x_data[0, ee_x_idx], x_data[0, ee_y_idx], 'go', label='Start')
 # Mark end 
 plt.plot(x_data[-1, ee_x_idx], x_data[-1, ee_y_idx], 'ko', label='End') 
 # Mark release point
-plt.plot(x_data[release_idx + max_lag + 1, ee_x_idx], x_data[release_idx + max_lag + 1, ee_y_idx], 'ro', label='Release Point')
+plt.plot(x_data[release_idx, ee_x_idx], x_data[release_idx, ee_y_idx], 'ro', label='Release Point')
 # Mark landing point and desired landing point 
 plt.plot(final_land_pos[0], final_land_pos[1], 'rx', label='Landing Point')
 plt.plot(des_land_pos[0], des_land_pos[1], 'kx', label='Desired Landing Point')
@@ -627,7 +640,7 @@ plt.plot(time_steps, velocities[:, ee_y_idx], label='End Effector Y Velocity', l
 plt.plot(time_steps, velocities[:, ee_z_idx], label='End Effector Z velocity', linewidth=2)
 # Add vertical line for release time
 # Note: release_idx corresponds to preds, we need to shift it for inputs which has lag padding
-release_time_plot_v = (release_idx + max_lag + 1) * dt 
+release_time_plot_v = (release_idx) * dt 
 plt.axvline(x=release_time_plot_v, color='k', linestyle='--', label=f'Release Instance ({release_time_plot_v:.2f}s)')
 plt.title('Velocity Profiles')
 plt.xlabel('Time (s)')
@@ -646,7 +659,7 @@ plt.figure(figsize=(10, 5))
 plt.plot(time_steps, v_abs, label='End Effector Absolute Velocity', linewidth=2, color='purple')
 # Add vertical line for release time
 # Note: release_idx corresponds to preds, we need to shift it for inputs which has lag padding
-release_time_plot_v = (release_idx + max_lag + 1) * dt 
+release_time_plot_v = (release_idx) * dt 
 plt.axvline(x=release_time_plot_v, color='k', linestyle='--', label=f'Release Instance ({release_time_plot_v:.2f}s)')
 plt.title('Absolute Velocity (Magnitude) Profile')
 plt.xlabel('Time (s)')
@@ -656,3 +669,5 @@ plt.grid(True)
 plt.tight_layout()
 plt.savefig(os.path.join(sim_result_path, plot_name), dpi=300, bbox_inches="tight")
 plt.close()
+
+
