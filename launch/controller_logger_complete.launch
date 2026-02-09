@@ -1,0 +1,4 @@
+<launch>
+  <node name="optimal_controller" pkg="sorosimpp_bayopt_throw" type="OLC_ROS.py" output="screen" />
+  <node name="data_logger" pkg="sorosimpp_bayopt_throw" type="complete_frame_logger.py" output="screen" />
+</launch>
