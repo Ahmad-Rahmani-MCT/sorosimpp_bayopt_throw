@@ -8,7 +8,7 @@ import os
 
 # user inputs 
 optimal_input_filename = "optimal_inputs.csv"
-QUEUE_SIZE = 10
+QUEUE_SIZE = 1
 NODE_FREQUENCY = 10.0  # [Hz] # node publishing frequency 
 SOROSIM_TAG = "/sorosimpp" # initial part of the topic name to publish the actuation messages
 N_ACT = 3  # Number of actuators

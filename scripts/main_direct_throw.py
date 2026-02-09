@@ -57,7 +57,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.1, 0.1] # desired landing pose 
+des_land_pos = [0.4, 0.4] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials
 
