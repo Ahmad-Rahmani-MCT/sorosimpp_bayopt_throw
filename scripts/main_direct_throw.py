@@ -57,7 +57,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.15, 0.15] # desired landing pose 
+des_land_pos = [-0.1, -0.1] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials
 
@@ -498,11 +498,11 @@ launch_controller_logger = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_p
 import time
 
 # starting the launch files 
-time.sleep(20)
+time.sleep(60)
 print("starting the sorosimpp launch file")
 launch_sorosimpp.start() 
 # rospy.sleep(10) 
-time.sleep(15)
+time.sleep(30)
 print("starting the controller and logger launch file") 
 launch_controller_logger.start() 
 
