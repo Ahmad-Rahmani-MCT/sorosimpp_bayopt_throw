@@ -114,9 +114,9 @@ def setup_axes(ax):
     ax.set_xlabel('X [m]')
     ax.set_ylabel('Y [m]')
     ax.set_zlabel('Z [m]')
-    ax.set_xlim(-0.2, 0.3)
-    ax.set_ylim(-0.2, 0.2)
-    ax.set_zlim(GROUND_Z, 0.1)
+    ax.set_xlim(-0.3, 0.3)
+    ax.set_ylim(-0.3, 0.3)
+    ax.set_zlim(GROUND_Z, 0.0)
     ax.grid(False)
 
 

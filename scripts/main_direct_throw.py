@@ -299,7 +299,7 @@ direct_throw_performance_dirname = "direct_throw_performance"
 direct_throw_performance_path = os.path.join(script_directory, direct_throw_performance_dirname)
 os.makedirs(direct_throw_performance_path, exist_ok=True) 
 
-MIL_result_dirname = "MIL_results" 
+MIL_result_dirname = f"MIL_results_{des_land_pos[0]}_{des_land_pos[1]}"  
 MIL_result_path = os.path.join(direct_throw_performance_path, MIL_result_dirname)
 os.makedirs(MIL_result_path, exist_ok=True) 
 
@@ -495,6 +495,7 @@ launch_sorosimpp = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_path_soro
 launch_controller_logger = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_path_controller_logger]) 
 
 # starting the launch files 
+rospy.sleep(5)
 print("starting the sorosimpp launch file")
 launch_sorosimpp.start() 
 rospy.sleep(10) 
@@ -552,7 +553,7 @@ time_steps = np.arange(len(x_data)) * dt
 time_inputs = np.arange(len(u_data)) * dt
 
 # creating the folder to save the plots 
-sim_result_dirname = "sim_results" 
+sim_result_dirname = f"sim_results_{des_land_pos[0]}_{des_land_pos[1]}" 
 sim_result_path = os.path.join(direct_throw_performance_path, sim_result_dirname)
 os.makedirs(sim_result_path, exist_ok=True) 
 
