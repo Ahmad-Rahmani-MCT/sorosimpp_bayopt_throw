@@ -494,24 +494,31 @@ roslaunch.configure_logging(uuid)
 launch_sorosimpp = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_path_sorosimpp]) 
 launch_controller_logger = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_path_controller_logger]) 
 
+import time
+
 # starting the launch files 
-rospy.sleep(5)
+time.sleep(15)
 print("starting the sorosimpp launch file")
 launch_sorosimpp.start() 
-rospy.sleep(10) 
+# rospy.sleep(10) 
+time.sleep(15)
 print("starting the controller and logger launch file") 
 launch_controller_logger.start() 
 
 # running for a while 
 try:
-    rospy.sleep(5) 
-except rospy.ROSInterruptException:
+    # rospy.sleep(5) 
+    time.sleep(5) 
+#except rospy.ROSInterruptException:
+#    pass
+except KeyboardInterrupt:
     pass
 
 # stopping the launch files 
 print("shutting down the controller and logger launch file")
 launch_controller_logger.shutdown() 
-rospy.sleep(3) 
+#rospy.sleep(3) 
+time.sleep(5)
 launch_sorosimpp.shutdown()
 
 
