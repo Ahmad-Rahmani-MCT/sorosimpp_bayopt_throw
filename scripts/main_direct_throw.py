@@ -57,7 +57,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.4, 0.4] # desired landing pose 
+des_land_pos = [0.15, 0.15] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials
 
@@ -273,7 +273,8 @@ def objective(trial) :
     u_step = np.array([u1_step, u2_step, u3_step]) # shape (,3)
     # ramp and release time steps  
     ramp_steps = trial.suggest_int("ramp_steps", 3, total_steps) 
-    release_step = trial.suggest_int("release_step", 0, total_steps + max_lag)  
+    #release_step = trial.suggest_int("release_step", 0, total_steps + max_lag)  
+    release_step = trial.suggest_int("release_step", 0, ramp_steps + max_lag + 1)
 
     _, _, _, _, _, dist = simulate_sys(u_step=u_step, ramp_steps=ramp_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)    
 
@@ -497,7 +498,7 @@ launch_controller_logger = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_p
 import time
 
 # starting the launch files 
-time.sleep(15)
+time.sleep(20)
 print("starting the sorosimpp launch file")
 launch_sorosimpp.start() 
 # rospy.sleep(10) 
@@ -677,5 +678,3 @@ plt.grid(True)
 plt.tight_layout()
 plt.savefig(os.path.join(sim_result_path, plot_name), dpi=300, bbox_inches="tight")
 plt.close()
-
-
