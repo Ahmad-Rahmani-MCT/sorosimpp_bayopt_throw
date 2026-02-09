@@ -57,7 +57,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [-0.1, -0.1] # desired landing pose 
+des_land_pos = [0.12, -0.11] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials
 
@@ -274,7 +274,10 @@ def objective(trial) :
     # ramp and release time steps  
     ramp_steps = trial.suggest_int("ramp_steps", 3, total_steps) 
     #release_step = trial.suggest_int("release_step", 0, total_steps + max_lag)  
-    release_step = trial.suggest_int("release_step", 0, ramp_steps + max_lag + 1)
+    if ramp_steps == total_steps : 
+        release_step = trial.suggest_int("release_step", 0, ramp_steps + max_lag) 
+    else: 
+        release_step = trial.suggest_int("release_step", 0, ramp_steps + max_lag + 1)
 
     _, _, _, _, _, dist = simulate_sys(u_step=u_step, ramp_steps=ramp_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)    
 
@@ -466,7 +469,34 @@ import roslaunch
 import rospy 
 import rospkg
 import time 
-import subprocess # Added to run terminal commands
+import subprocess # Added to run terminal commands 
+
+########## cleaning resurces #############
+
+
+import gc # garbage collector
+import torch
+import time
+
+# ... [End of your Optimization Loop] ...
+
+print("Optimization complete. Cleaning up resources for ROS...")
+
+# 1. Delete heavy objects
+del forward_model
+del study
+del input_scaler
+del state_scaler
+
+# 2. Force Python to release RAM
+gc.collect()
+
+
+print("Resources freed. Launching Simulator...")
+
+
+#### end releasing resources #######
+
 
 # closing any active nodes (to prevent errors)
 print("closing any active nods")
