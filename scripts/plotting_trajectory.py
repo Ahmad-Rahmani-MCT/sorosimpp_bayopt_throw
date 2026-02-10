@@ -10,10 +10,10 @@ import numpy as np
 REQUIRED_FRAMES = ["base"] + [f"cs{i}" for i in range(1, 39)] + ["tip"]
 
 # --- THROW SETTINGS ---
-RELEASE_INDEX = 7
+RELEASE_INDEX = 5
 
 # --- GOAL SETTINGS ---
-GOAL_POS = [0.1, 0.1, -1.0]
+GOAL_POS = [0.15, 0.15, -1.0]
 
 # --- ENVIRONMENT SETTINGS ---
 GROUND_Z = -1.0

@@ -57,7 +57,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.15, 0.15] # desired landing pose 
+des_land_pos = [0.18, -0.18] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials 
 ramp_steps_runup = 4 
@@ -307,8 +307,8 @@ def objective(trial) :
     cost_direction = np.mean(np.maximum(0, dot_prod))
 
     # 5. Weights for the new terms
-    W_line = 2.0 # Weight for staying on the line
-    W_dir = 2.0   # Weight for being on the opposite side
+    W_line = 1.0 # Weight for staying on the line
+    W_dir = 3.0   # Weight for being on the opposite side
     
     # Update Total Cost
     cost = (Q * dist) + (W_line * cost_straightness) + (W_dir * cost_direction)
@@ -336,7 +336,7 @@ runup_throw_performance_dirname = "runup_throw_performance"
 runup_throw_performance_path = os.path.join(script_directory, runup_throw_performance_dirname)
 os.makedirs(runup_throw_performance_path, exist_ok=True) 
 
-MIL_result_dirname = "MIL_results" 
+MIL_result_dirname = f"MIL_results_{des_land_pos[0]}_{des_land_pos[1]}" 
 MIL_result_path = os.path.join(runup_throw_performance_path, MIL_result_dirname)
 os.makedirs(MIL_result_path, exist_ok=True) 
 
@@ -510,7 +510,33 @@ import roslaunch
 import rospy 
 import rospkg
 import time 
-import subprocess # Added to run terminal commands
+import subprocess # Added to run terminal commands 
+
+
+########## cleaning resurces #############
+
+
+import gc # garbage collector
+import torch
+import time
+
+# ... [End of your Optimization Loop] ...
+
+print("Optimization complete. Cleaning up resources for ROS...")
+
+# 1. Delete heavy objects
+del forward_model
+del study
+del input_scaler
+del state_scaler
+
+# 2. Force Python to release RAM
+gc.collect()
+
+
+print("Resources freed. Launching Simulator...")  
+
+#### end releasing resources #######
 
 # closing any active nodes (to prevent errors)
 print("closing any active nods")
@@ -537,25 +563,32 @@ roslaunch.configure_logging(uuid)
 
 # creating the launch parent object 
 launch_sorosimpp = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_path_sorosimpp]) 
-launch_controller_logger = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_path_controller_logger]) 
+launch_controller_logger = roslaunch.parent.ROSLaunchParent(uuid, [launch_file_path_controller_logger])  
+
+
+import time
 
 # starting the launch files 
+time.sleep(60)
 print("starting the sorosimpp launch file")
 launch_sorosimpp.start() 
-rospy.sleep(10) 
+#rospy.sleep(10) 
+time.sleep(30)
 print("starting the controller and logger launch file") 
 launch_controller_logger.start() 
 
 # running for a while 
 try:
-    rospy.sleep(5) 
+    #rospy.sleep(5)
+    time.sleep(5) 
 except rospy.ROSInterruptException:
     pass
 
 # stopping the launch files 
 print("shutting down the controller and logger launch file")
 launch_controller_logger.shutdown() 
-rospy.sleep(3) 
+#rospy.sleep(3) 
+time.sleep(5)
 launch_sorosimpp.shutdown()
 
 
@@ -597,7 +630,7 @@ time_steps = np.arange(len(x_data)) * dt
 time_inputs = np.arange(len(u_data)) * dt
 
 # creating the folder to save the plots 
-sim_result_dirname = "sim_results" 
+sim_result_dirname = f"sim_results_{des_land_pos[0]}_{des_land_pos[1]}" 
 sim_result_path = os.path.join(runup_throw_performance_path, sim_result_dirname)
 os.makedirs(sim_result_path, exist_ok=True) 
 
@@ -715,5 +748,3 @@ plt.grid(True)
 plt.tight_layout()
 plt.savefig(os.path.join(sim_result_path, plot_name), dpi=300, bbox_inches="tight")
 plt.close() 
-
-
