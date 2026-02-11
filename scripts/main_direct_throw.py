@@ -57,15 +57,16 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.15, 0.15] # desired landing pose 
+des_land_pos = [0.13, 0.13] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials
 
-# selecting the compute device 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
-print(f"using compute device: {device}") 
-if device.type == "cuda":
-    print(f"GPU: {torch.cuda.get_device_name(0)}")   
+# # selecting the compute device 
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+# print(f"using compute device: {device}") 
+# if device.type == "cuda":
+#     print(f"GPU: {torch.cuda.get_device_name(0)}")
+device = "cpu"
 
 # setting seeds 
 def set_all_seeds(seed: int = 42):
