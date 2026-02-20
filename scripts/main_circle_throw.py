@@ -58,7 +58,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.18, -0.18] # desired landing pose 
+des_land_pos = [0.20, 0.20] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials 
 ramp_steps_runup = 4 
@@ -296,8 +296,8 @@ def objective(trial) :
     # runup inputs 
     amplitude = trial.suggest_float("amplitude", umin, umax) # actuator 1 
     frequency = trial.suggest_float("frequency", fmin, fmax) # actuator 2
-    runup_steps = trial.suggest_int("runup_steps", 10, 20) # actuator 3 
-    release_step = trial.suggest_int("release_step", 0, runup_steps + max_lag)
+    runup_steps = trial.suggest_int("runup_steps", 0, total_steps) # actuator 3 
+    release_step = trial.suggest_int("release_step", 0, total_steps + max_lag)
     # simulate the system
     _, _, _, _, _, dist = simulate_sys_runup(amplitude=amplitude, frequency=frequency, runup_steps=runup_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)    
     # defining the cost function 
@@ -309,7 +309,19 @@ def objective(trial) :
 # bayesian optimization settings and initiation
 
 # %%
-study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=42))
+'''
+sampler = optuna.samplers.TPESampler(
+    seed=42, 
+multivariate=True, # allows TPE to model correlations between variables
+n_startup_trials=50 # gives it 50 random guesses to explore before optimizing
+)
+'''
+sampler = optuna.samplers.CmaEsSampler(
+    seed=42,
+    # CMA-ES automatically handles multivariate relationships, so no flag is needed
+)
+
+study = optuna.create_study(direction="minimize", sampler=sampler)
 study.optimize(objective, n_trials=n_trials, show_progress_bar=True) 
 
 # %% [markdown]
