@@ -57,7 +57,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.18, -0.18] # desired landing pose 
+des_land_pos = [0.25, 0.25] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials 
 ramp_steps_runup = 4 
@@ -415,7 +415,7 @@ plt.legend()
 plt.axis('equal')
 plt.grid(True) 
 cx, cy = x_intial[3], x_intial[4] 
-half = 0.2 # how far from the center 
+half = 0.4 # how far from the center 
 ax = plt.gca()
 ax.set_xlim(cx - half, cx + half)
 ax.set_ylim(cy - half, cy + half)
@@ -676,7 +676,7 @@ plt.legend()
 plt.axis('equal')
 plt.grid(True) 
 cx, cy = x_data[0, ee_x_idx], x_data[0, ee_y_idx] 
-half = 0.2 # how far from the center 
+half = 0.4 # how far from the center 
 ax = plt.gca()
 ax.set_xlim(cx - half, cx + half)
 ax.set_ylim(cy - half, cy + half)
