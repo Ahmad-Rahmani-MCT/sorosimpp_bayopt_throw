@@ -2,8 +2,6 @@ create a virtual environment
 did pip install: 
 pip install -r requirements.txt
 
-**THIS README IS A SHIT**
-
 # SoRoSim++ BayOpt Throw
 This package [... insert your description of the package...]
 
