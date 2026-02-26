@@ -1,9 +1,5 @@
-create a virtual environment
-did pip install: 
-pip install -r requirements.txt
 
 # SoRoSim++ BayOpt Throw
-This package [... insert your description of the package...]
 
 ## Install and Build
 ```bash
