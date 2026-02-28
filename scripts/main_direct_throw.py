@@ -291,15 +291,15 @@ def objective(trial) :
 # bayesian optimization settings and initiation
 
 # %%
-sampler = optuna.samplers.TPESampler(
-    seed=42, 
-multivariate=True, # allows TPE to model correlations between variables
-n_startup_trials=50 # gives it 50 random guesses to explore before optimizing
-)
-# sampler = optuna.samplers.CmaEsSampler(
-#     seed=42,
-#     # CMA-ES automatically handles multivariate relationships, so no flag is needed
+# sampler = optuna.samplers.TPESampler(
+#     seed=42, 
+# multivariate=True, # allows TPE to model correlations between variables
+# n_startup_trials=50 # gives it 50 random guesses to explore before optimizing
 # )
+sampler = optuna.samplers.CmaEsSampler(
+    seed=42,
+    # CMA-ES automatically handles multivariate relationships, so no flag is needed
+)
 # study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=42))
 study = optuna.create_study(direction="minimize", sampler=sampler)
 study.optimize(objective, n_trials=n_trials, show_progress_bar=True) 
