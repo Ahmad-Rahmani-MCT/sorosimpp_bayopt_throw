@@ -57,7 +57,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.13, 0.13] # desired landing pose 
+des_land_pos = [0.13, -0.13] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials
 
@@ -275,10 +275,11 @@ def objective(trial) :
     # ramp and release time steps  
     ramp_steps = trial.suggest_int("ramp_steps", 3, total_steps) 
     #release_step = trial.suggest_int("release_step", 0, total_steps + max_lag)  
-    if ramp_steps == total_steps : 
-        release_step = trial.suggest_int("release_step", 0, ramp_steps + max_lag) 
-    else: 
-        release_step = trial.suggest_int("release_step", 0, ramp_steps + max_lag + 1)
+    # if ramp_steps == total_steps : 
+    #     release_step = trial.suggest_int("release_step", 0, ramp_steps + max_lag) 
+    # else: 
+    #     release_step = trial.suggest_int("release_step", 0, ramp_steps + max_lag + 1)
+    release_step = trial.suggest_int("release_step", 0, total_steps + max_lag )
 
     _, _, _, _, _, dist = simulate_sys(u_step=u_step, ramp_steps=ramp_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)    
 
@@ -290,7 +291,17 @@ def objective(trial) :
 # bayesian optimization settings and initiation
 
 # %%
-study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=42))
+sampler = optuna.samplers.TPESampler(
+    seed=42, 
+multivariate=True, # allows TPE to model correlations between variables
+n_startup_trials=50 # gives it 50 random guesses to explore before optimizing
+)
+# sampler = optuna.samplers.CmaEsSampler(
+#     seed=42,
+#     # CMA-ES automatically handles multivariate relationships, so no flag is needed
+# )
+# study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=42))
+study = optuna.create_study(direction="minimize", sampler=sampler)
 study.optimize(objective, n_trials=n_trials, show_progress_bar=True) 
 
 # %% [markdown]
