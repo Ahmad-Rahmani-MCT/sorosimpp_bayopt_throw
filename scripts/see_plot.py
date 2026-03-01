@@ -32,7 +32,7 @@ def plot_workspace_targets(filename="workspace_targets.csv"):
 
     # Draw the boundary circles for visual reference
     inner_circle = plt.Circle((0, 0), 0.1, color='red', fill=False, linestyle='--', linewidth=1.5, label='Inner Boundary (0.1)')
-    outer_circle = plt.Circle((0, 0), 0.25, color='green', fill=False, linestyle='--', linewidth=1.5, label='Outer Boundary (0.25)')
+    outer_circle = plt.Circle((0, 0), 0.42, color='green', fill=False, linestyle='--', linewidth=1.5, label='Outer Boundary (0.25)')
     
     ax.add_patch(inner_circle)
     ax.add_patch(outer_circle)
@@ -41,8 +41,8 @@ def plot_workspace_targets(filename="workspace_targets.csv"):
     ax.set_aspect('equal', adjustable='box')
     
     # Give the plot some breathing room around the edges
-    ax.set_xlim([-0.3, 0.3])
-    ax.set_ylim([-0.3, 0.3])
+    ax.set_xlim([-0.5, 0.5])
+    ax.set_ylim([-0.5, 0.5])
 
     # Labels, title, and grid formatting
     ax.set_xlabel('Target X')

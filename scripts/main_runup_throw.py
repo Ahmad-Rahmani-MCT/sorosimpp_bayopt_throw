@@ -57,7 +57,7 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.25, 0.25] # desired landing pose 
+des_land_pos = [0.30, 0.30] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials 
 ramp_steps_runup = 4 
@@ -307,7 +307,7 @@ def objective(trial) :
     cost_direction = np.mean(np.maximum(0, dot_prod))
 
     # 5. Weights for the new terms
-    W_line = 1.0 # Weight for staying on the line
+    W_line = 0 # Weight for staying on the line
     W_dir = 3.0   # Weight for being on the opposite side
     
     # Update Total Cost
@@ -322,7 +322,11 @@ def objective(trial) :
 # bayesian optimization settings and initiation
 
 # %%
-study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=42))
+sampler = optuna.samplers.CmaEsSampler(
+    seed=42,
+    # CMA-ES automatically handles multivariate relationships, so no flag is needed
+)
+study = optuna.create_study(direction="minimize", sampler=sampler)
 study.optimize(objective, n_trials=n_trials, show_progress_bar=True) 
 
 # %% [markdown]
