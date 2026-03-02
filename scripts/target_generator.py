@@ -4,7 +4,7 @@ import math
 import csv
 import os
 
-def generate_workspace_targets(num_points=100, inner_radius=0.1, outer_radius=0.42, filename="workspace_targets.csv"):
+def generate_workspace_targets(num_points=100, inner_radius=0.1, outer_radius=0.35, filename="workspace_targets.csv"):
     targets = []
     
     # Set a seed so you can reproduce these exact same points if needed

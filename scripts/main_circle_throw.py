@@ -58,13 +58,13 @@ dt = 0.1 # sampling time
 total_steps = int(tmax/dt) 
 z_g = -1 # structure height 
 g = 9.8 # gravity acceleration
-des_land_pos = [0.20, 0.20] # desired landing pose 
+des_land_pos = [0.25, 0.25] # desired landing pose 
 Q = 1 # landing pose weight term  
 n_trials = 1000 # number of trials 
 ramp_steps_runup = 4 
 runup_hold_steps = 3  
 PHASES = [0.0, (2.0/3.0)*np.pi, (4.0/3.0)*np.pi] # phases for the circle primitive sinusoidal input   
-fmax = 1.3 # max frequency for the circle motion
+fmax = 1.5 # max frequency for the circle motion
 fmin = 0.8 
 
 # selecting the compute device 
@@ -151,7 +151,7 @@ def smoothstep_linspace(steps):
 # defining the function to simulate the system given the decision variables
 
 # %%
-def simulate_sys_runup(amplitude: int, frequency: int, runup_steps: int, release_step: int, input_scaler: MinMaxScaler, state_scaler: MinMaxScaler) : 
+def simulate_sys_runup(amplitude: int, frequency: int, phase_lag: int, runup_steps: int, release_step: int, input_scaler: MinMaxScaler, state_scaler: MinMaxScaler) : 
         
         # configuring the inputs
         # creating the runup profile 
@@ -160,7 +160,7 @@ def simulate_sys_runup(amplitude: int, frequency: int, runup_steps: int, release
         # creating the un modulated input array 
         time_array = np.arange(0, tmax, dt) 
         time_array = time_array[:, np.newaxis]
-        u_unmodulated = (amplitude / 2) * (1 + np.sin(2.0 * np.pi * frequency * time_array + PHASES)) # shape (len(time_array), 3)
+        u_unmodulated = (amplitude / 2) * (1 + np.sin(2.0 * np.pi * frequency * time_array + PHASES + phase_lag)) # shape (len(time_array), 3)
         # creating the run up array 
         u_smoothstep_runup = smoothstep_factor_runup * u_unmodulated[:len(smoothstep_factor_runup), :]  
         # creating the final input array 
@@ -296,10 +296,11 @@ def objective(trial) :
     # runup inputs 
     amplitude = trial.suggest_float("amplitude", umin, umax) # actuator 1 
     frequency = trial.suggest_float("frequency", fmin, fmax) # actuator 2
+    phase_lag = trial.suggest_float("phase_lag", 0, 2*np.pi-0.1)
     runup_steps = trial.suggest_int("runup_steps", 0, total_steps) # actuator 3 
     release_step = trial.suggest_int("release_step", 0, total_steps + max_lag)
     # simulate the system
-    _, _, _, _, _, dist = simulate_sys_runup(amplitude=amplitude, frequency=frequency, runup_steps=runup_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)    
+    _, _, _, _, _, dist = simulate_sys_runup(amplitude=amplitude, frequency=frequency, phase_lag = phase_lag, runup_steps=runup_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)    
     # defining the cost function 
     cost = Q * dist
     return cost 
@@ -350,8 +351,9 @@ amplitude = best_params["amplitude"]
 frequency = best_params["frequency"]
 runup_steps = best_params["runup_steps"]
 release_step = best_params["release_step"] 
+phase_lag = best_params["phase_lag"]
 
-u_data, x_data, velocities, final_land_pos, release_idx, dist = simulate_sys_runup(amplitude=amplitude, frequency=frequency, runup_steps=runup_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)  
+u_data, x_data, velocities, final_land_pos, release_idx, dist = simulate_sys_runup(amplitude=amplitude, frequency=frequency, phase_lag=phase_lag, runup_steps=runup_steps, release_step=release_step, input_scaler=input_scaler, state_scaler=state_scaler)  
 
 print("final distance: ", dist) 
 print("state tejectory shape: ", x_data.shape)
